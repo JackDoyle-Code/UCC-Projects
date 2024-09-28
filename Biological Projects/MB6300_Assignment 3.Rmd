@@ -1,0 +1,239 @@
+---
+title: "MB6300 Assignment 3"
+author: "Jack Doyle"
+date: "2023-03-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/home/jack/Documents/Semester2/MB6300/MB6300_assignments/assignment_3")
+```
+
+ Differential Expression Analysis and Sequence Logos (worth 10% of MB6300)
+
+**All R code should include comments briefly describing how it works, and what it is doing.**
+
+```{r}
+library(affy)
+library(limma)
+library(hgu95av2cdf)
+```
+
+
+## Question 1
+
+**Q1 (a) (3%) The file assignment3.RData on CANVAS contains an R environment with a Microarray dataset from a human breast cancer study with both diseased and healthy samples.**
+
+
+i) Perform a differential expression analysis with limma (use rma, quantiles, pmonly and medianpolish). 
+
+
+ii) Which samples contain expression information from diseased samples?  
+
+GSM757758.CEL.gz	diseased			
+GSM757759.CEL.gz	diseased			
+GSM757760.CEL.gz	diseased
+
+iii) How many genes are differentially expressed with an adjusted p-value less than 0.05? 
+
+2649
+
+iv) How many of the significantly differentially expressed genes are upregulated (i.e. expressed higher) in the diseased samples over the healthy?
+
+1159
+
+v) Along with Heatmaps (as seen in the practicals), Volcano Plots are one of the most popular methods for the visualisation of differential expression data. Using your fitted linear model from limma (lmfit) generate a Volcano Plot for this example dataset using the P-Value based significance measure. Full marks will go for a (near-)publication quality figure with appropriate labelling. 
+```{r q1a}
+load("assignment3-1.RData")
+assignment3
+
+eset <- expresso(assignment3, bgcorrect.method="rma",
+                   normalize.method="quantiles",pmcorrect.method="pmonly",
+                   summary.method="medianpolish")
+
+# num genes = 54675
+# num samples = 6
+
+group = data.frame(healthy = c(1, 1, 1, 0, 0, 0), diseased = c(0, 0, 0, 1, 1, 1))
+pData(eset)
+rownames(group) = rownames(pData(eset))
+lm = lmFit(eset, group)
+con = makeContrasts(diseased - healthy, levels = group)
+fit = contrasts.fit(lm, con)
+bay = eBayes(fit)
+table = topTable(bay, coef=1, adjust="BH", number = Inf)
+sig_genes = table[table$adj.P.Val < 0.05,]
+up_reg = sig_genes[sig_genes$logFC > 0,]
+down_reg = sig_genes[sig_genes$logFC < 0,]
+nrow(sig_genes)
+nrow(up_reg)
+nrow(down_reg)
+summary(decideTests(bay))
+
+library(EnhancedVolcano)
+EnhancedVolcano(table,
+  lab = rownames(table),
+  x = 'logFC',
+  y = 'P.Value',
+  pCutoffCol = "adj.P.Val",
+  pCutoff = 0.05,
+  pointSize = 1.5,
+  labSize = 2.5,
+  axisLabSize = 10,
+  titleLabSize = 14,
+  subtitleLabSize = 10,
+  captionLabSize = 10,
+  title = 'Differential Gene Expression',
+  caption = 'FC cutoff, default(1); adj p-value cutoff, 0.05',
+  legendPosition = "right",
+  legendLabSize = 8,
+  col = c('grey30', 'forestgreen', 'royalblue', 'red2'),
+  colAlpha = 0.9,
+  drawConnectors = T,
+  widthConnectors = 0.5)
+```
+
+**Q1 (b) (1%) Show your understanding of the Microarray data analysis:**
+
+i) In your own words, explain the 4 main parameters of the expresso() function, bgcorrect.method, normalize.method, pmcorrect.method and summary.method. Be sure to explain what each of them do, and why they are needed.**
+
+Background correction is involved in the preprocessing of microarray. It removes the background signal of the fluorescent intensity from the microarray probes.
+Normalising is used to adjust the expression values so that they can be compared across all the samples.
+PM correction is similar to that of background correction however, it only removes ambient intensity from Perfect-Match (complementary) probes
+Summary computes the summary of expression values for the microarray data
+
+
+ii) In your own words, briefly describe the advantages and disadvantages of using a Microarray for measuring gene expression**
+
+Advantages:
+Can measure the expression of a large number of genes
+Has be used for a number of years, with many technological tools having been developed for it.
+
+Disadvantages:
+RNA-seq is becoming cheaper, therefore microarrays are no longer cost-effective in comparison
+Greater time consumption required when determining genetic regions that separate one species from another
+
+
+## Question 2
+
+**Q2 (a) (1%) The file RNA_Seq_assignment3.txt on CANVAS contains RNA-Seq data for a mouse sequencing experiment. Samples 1 to 4 are from condition A and the rest are from condition B.**
+
+
+i) Perform a differential expression analysis with DESeq2. 
+
+
+ii) How many genes are differentially expressed with an adjusted p-value cut off of 0.05?
+
+There are 32 genes that are up-regulated and 46 that are down-regulated. In total there are 78 genes that are differentially expressed with an adjusted p-values of <0.05
+
+iii) Out of the differentially expressed genes, which have the 5 highest and 5 lowest fold changes? (Just return the gene names).
+
+5 Highest = "ENSMUSG00000037727" "ENSMUSG00000096225" "ENSMUSG00000084459" "ENSMUSG00000027301" "ENSMUSG00000082274"
+
+5 Lowest = "ENSMUSG00000104514" "ENSMUSG00000104515" "ENSMUSG00000104518" "ENSMUSG00000104522" "ENSMUSG00000104526"
+
+```{r q2a}
+library(DESeq2)
+library(RColorBrewer)
+library(pheatmap)
+
+rna = read.table("RNA_Seq_assignment3-1.txt")
+sample = c("A", "A", "A", "A", "B", "B", "B", "B")
+condition = data.frame(sample, row.names = colnames(rna))
+mat = DESeqDataSetFromMatrix(countData = rna, colData = condition, design = ~ sample)
+
+dds = DESeq(mat)
+res = results(dds, alpha = 0.05)
+summary(res)
+
+sig = as.data.frame(res)
+sig = na.omit(sig[sig$padj < 0.05,])
+
+foldh = head(rownames(sig[order(sig$log2FoldChange, decreasing = T),]), 5)
+foldl = head(rownames(sig[order(sig$log2FoldChange, decreasing = F),]), 5)
+foldh
+foldl
+```
+
+**Q2 (b) (1%) Create a heatmap based on the 10 genes listed above.**  
+
+
+i) How do the samples cluster? 
+
+All samples are clustered in pairs with the condition A and B being clustered separatelty again.
+
+ii) Do the samples from condition A and B form discrete clusters? 
+
+Yes, there is a discrete cluster separation between condition A and B. Samples with condition A have a higher expression of the first gene compared to the samples with condition B.
+
+```{r q2b}
+trans = vst(dds)
+df = as.data.frame(colData(dds)["sample"])
+fold_all = append(foldh, foldl)
+pheatmap(assay(trans)[fold_all,], show_rownames=FALSE, annotation_col=df)
+```
+
+**Q2 (c) (1%) Also create a heatmap with the 10 genes which have the highest standard deviation.**
+
+
+i) Are the clusters the same as the previous heatmap?
+
+No
+
+```{r q2c}
+sig_count = rna[rownames(sig),]
+std = apply(sig_count, 1, sd)
+stat = cbind(sig, std)
+stat
+stdh = head(rownames(stat[order(stat$std, decreasing = T),]), 10)
+pheatmap(assay(trans)[stdh,], show_rownames=FALSE, annotation_col=df)
+```
+
+
+**Q2 (d) (1%) Use biomaRt to retrieve annotation information (i.e. what each gene does) for each of the 10 genes you listed in Q2(a). Insert a table with the annotation information below.**
+
+```{r q2d}
+library(biomaRt)
+ensembl = useEnsembl(biomart = "genes", host = "www.ensembl.org")
+searchDatasets(mart = ensembl, pattern = "mus")
+ensembl = useDataset(dataset = "mmusculus_gene_ensembl", mart = ensembl)
+# listAttributes(ensembl)
+# listFilters(ensembl)
+searchAttributes(mart = ensembl, pattern = "desc")
+getBM(attributes = c("ensembl_gene_id", "external_gene_name", "description"),
+      filter = "ensembl_gene_id",
+      values = fold_all,
+      mart = ensembl)
+
+```
+
+
+## Question 3
+
+**Q3 (2%) The file DNAmatrices.RData on CANVAS contains two position frequency matrices (PFMs), DNA_mat1 and DNA_mat2**
+
+i) Create a position weight matrix and then a sequence motif for both DNA_mat1 and DNA_mat2. Display probability (not information content) on the y-axis.
+
+
+ii) What is the difference between the two motifs? Interpret both motifs biologically.
+
+DNA_mat2 is more conserved than DNA_mat1. There is more information about a given position in DNA_mat2 compared to DNA_mat1. This is because there are more positions in DNA_mat2 that have a high probability (e.g. 1) for a specific nucleotide. This corresponds to low tolerance for substitutions, whereas DNA_mat1 has more positions with uncertain probabilities (i.e. multiple nucleotides have a probability of occurring in that position). This corresponds to a high tolerance for substitutions.
+
+iii) What are the consensus sequences for both motifs?
+
+DNA_mat1 = "ACGTTG"
+DNA_mat2 = "ACGTCACT"
+
+```{r q3}
+library(seqLogo)
+load("DNAmatrices-1.RData")
+pwm1 = makePWM(DNA_mat1)
+pwm2 = makePWM(DNA_mat2)
+logo1 = seqLogo(pwm1, ic.scale = F)
+logo2 = seqLogo(pwm2, ic.scale = F)
+pwm1@consensus
+pwm2@consensus
+```
+
+

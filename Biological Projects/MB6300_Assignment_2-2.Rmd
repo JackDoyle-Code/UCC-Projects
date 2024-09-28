@@ -1,0 +1,216 @@
+---
+title: "MB6300 Assignment 2"
+author: "Jack Doyle"
+date: "02-2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/home/jack/Documents/Semester2/MB6300/MB6300_assignments/Assignment_2")
+```
+
+**Q.1.The file, assignment2.RData, in the Assignment 2 folder on Canvas is an R environment containing 4 undirected graphs, two pairs. These graphs are labelled, graph1, graph2, graph3 and graph4. Each pair contains the same number of nodes (genes) and edges (interactions); however, within each pair there is a graph from a real gene regulatory network and a graph where edges have been assigned randomly between nodes (see lecture notes). Remember to load all necessary libraries. (4)**
+
+```{r libraries}
+# BiocManager::install("RBGL")
+# Use this chunk to call any libraries you may need
+# install.packages("")
+library(graph)
+library(igraph)
+library(Rgraphviz)
+library(RBGL)
+library(BoolNet)
+load("assignment2-1.RData")
+```
+
+**Q.1.a Identify each pair and demonstrate, using a metric/method of your choice, which graph is real and which is random. Explain the logic behind your decision.**
+
+```{r q1a}
+print(graph1)
+print(graph2)
+print(graph3)
+print(graph4)
+
+hist(graph::degree(graph1), xlab = "Degree", ylab = "Number of Nodes", main = "Graph 1, Random Network")
+hist(graph::degree(graph2), xlab = "Degree", ylab = "Number of Nodes", main = "Graph 2, Scale-Free Network")
+hist(graph::degree(graph3), xlab = "Degree", ylab = "Number of Nodes", main = "Graph 3, Scale-Free Network")
+hist(graph::degree(graph4), xlab = "Degree", ylab = "Number of Nodes", main = "Graph 4, Random Network")
+```
+
+
+
+Q.1.a
+
+Graph 1 & 3 are pairs as they contain the same number of nodes and edges
+Graph 2 & 4 are pairs as they contain the same number of nodes and edges
+
+The real graphs are Graph 2 & 3. This is because they both follow a power law distribution, whereas Graph 1 & 4 follow a poisson distribution. 
+
+Graphs 2 & 3 follow a power law distribution as they are a scale-free network. Scale-free networks are characterised by a majority of nodes that contain a low degree (number of connections) and a small number of nodes having a high degree (hubs). This results in them following a power law distribution which can be seen in graphs 2 & 3
+
+Graphs 1 & 4 follow a poisson distribution as they are a random network. Random networks are characterised by randomly established connections between nodes (i.e. each connection between nodes is equally as likely to occur as any other node). These networks do not follow any specific structural pattern. This results in them following a poisson distribution which can be seen in graphs 1 & 4
+
+
+
+**Q.1.b How many nodes are in the second largest connected component for each of the real graphs? Plot these connected components. If there is more than one connected component that is the second largest size plot all second largest components (for example if there are 3 connected components in the graph that have 8 nodes, and 8 is the second largest, plot all 3 of these connected components).**
+```{r q1b}
+# Q1b
+
+# creates a function with an input graphNel and integers
+# Finds the nth largest connected component in the GraphNel network
+
+n_largest_cc = function(graph, n){
+  connect = connectedComp(graph) # gets a list of all connected components
+  len_con = sapply(connect, length) # gets the length of each connected components
+  sort_con = sort(len_con, decreasing = T) # sorts them in descending order
+  sec_lar = which(len_con %in% sort_con[n]) # gets the length of the nth largest connected component and gets the index of it. If there are multiple nth largest connected component it will get all of them.
+  ans = connect[sec_lar] # gets the connected components
+  return(ans)
+}
+
+ans1 = n_largest_cc(graph2, 2)
+ans2 = n_largest_cc(graph3, 2)
+
+# function created to plot graphs of connected components. Created to be used in an apply() function
+
+plott = function(x, graph){
+  g1 = graph::subGraph(unlist(x), graph)
+  gg1 = layoutGraph(g1)
+  ggg1 = renderGraph(gg1)
+  return(ggg1)
+}
+
+lapply(ans1, plott, graph = graph2)
+plott(ans2, graph3)
+```
+
+
+**Q.1.c Which node has the highest degree in each real graph? List the nodes that have edges connecting them to this node. Explain this node in a biological context.**
+```{r q1c}
+# Q1c
+print("Graph 2")
+big1 = which.max(graph::degree(graph2))
+graph::degree(graph2)[big1]
+# The node YCL032W in the index 100 has the highest degree in graph2 (30)
+adj(graph2, big1)
+
+print("Graph 3")
+big2 = which.max(graph::degree(graph3))
+graph::degree(graph3)[big2]
+# The node YCL032W in the index 210 has the highest degree in graph3 (53)
+adj(graph3, big2)
+```
+In Graph 2 the node with the highest degree is YCL032W, with a degree of 30. 
+In Graph 3 the node with the highest degree is YCR057C, with a degree of 55. 
+
+The degree of the node represents the number of edges connecting to said node. A node with a large degree (e.g. 30, 55) would suggest that this node is a hub. In this particular case we are looking at the largest hub within both networks (Graph 2 & 3)
+
+Hubs play an important role within networks as the deletion of a hub node is more likely to result in significant effect rather than the deletion of a non-hub node. Hubs play an important role in the organisation of a network. Hubs have a high number of connections with other nodes and removing this has a higher probability of signifcantly influencing the network as opposed to non-hub nodes.
+
+
+
+**Q.1.d  How many nodes have a degree of one in each real graph? Explain these nodes in a biological context.**
+```{r q1d}
+# Q1d
+print("Graph 2")
+deg_1_1 = which(graph::degree(graph2) %in% 1)
+length(deg_1_1)
+
+print("Graph 3")
+deg_1_2 = which(graph::degree(graph3) %in% 1)
+length(deg_1_2)
+```
+
+In Graph 2 has 781 nodes with a degree of 1.
+In Graph 3 has 434 nodes with a degree of 1.
+
+Nodes with a degree of 1 means that there is only a single edge connecting to this node (i.e. they only have a single interaction within the network). Nodes with a degree of one indicate that they are not heavily involved in the broader processes of the network and instead are likely involved in specific cellular processes in the network.
+
+
+
+**Q.2 Load the igf dataset from the BoolNet library into your R environment. The transition functions in igf resemble the cellcycle dataset (Practical 5) in terms of their structure, but there is a difference. Some transition functions have either -2 or -3 in square brackets after certain genes. When answering questions, remember that the cellcycle dataset transitions from t to t+1 in a deterministic manner that is reflected by the transition function for each gene. The igf dataset follows the same deterministic structure (i.e. earlier states completely determine later states). (4)**
+
+**Q.2.a How many genes are in the igf dataset? List the genes. How many attractors are there? Display the attractors.**
+```{r q2a}
+# Q2a
+data("igf")
+print(length(igf$genes))
+print(igf$genes)
+
+attract = getAttractors(igf)
+print(length(attract$attractors))
+print(attract$attractors)
+```
+
+There are 6 genes and 2 attractors within the igf dataset.
+
+
+**Q.2.b How many states does each attractor have in the igf dataset? Explain the difference between attractor 1 and attractor 2 in terms of how the model works/runs? For this please explain the general difference between the two in terms of states and cycling. **
+```{r q2b}
+# Q2b
+getAttractors(igf)
+```
+Attractor 1 is a simple attractor of one state. It is in a off state as all values are set to 0, therefore there are not any 1s (genes) capable of changing the state. This attractor remianis in the same state indefinitely.
+
+Attractor 2 is a simple attractor of 14 states. Its possible states are listed above and indicate that the attractor follows a cyclical pattern. It starts off in a base state of 100000. The first active gene (IGF) then activates IRS resulting in a new state (110000). This continues with different genes activating and repressing other genes leading to a new state. This eventually results in the state returning to the original state transition (100000) (i.e. cyclical). 
+
+**Q.2.c Explain what -2 and -3 represent in square brackets after certain genes in the transition functions. Describe the transition function for the IRS gene in words. **
+```{r q2c}
+# Q2c
+igf
+```
+
+The numbers after the genes in square brackets represent which transition state the gene needs to be active/inactive in order for the gene it's linked to, to be expressed.
+
+E.g. IRS
+
+The IRS gene requires IGF to be activated 2 transition states prior and mTORC1 to be inactive in both 2 & 3 transition states prior, in order for IRS to become activated. 
+
+**Q.2.d Display the basin of attraction for attractor 2 (i.e. all the states that lead to attractor 2 after one state transition). **
+```{r q2d}
+# Q2d
+getBasinOfAttraction(getAttractors(igf), 2)
+```
+
+**Q.3.This question will draw on your knowledge from Assignment 1 and test your ability to incorporate specific functions from R network packages into functions of your own. Remember that a good attempt at the answer will get you a lot of the marks. (2)**
+
+**Q.3.a Write a function that takes a graph (like those from Q.1) and outputs a matrix of one column and six rows with the following information: minimum degree, median degree, mean degree, maximum degree, number of connected components and number of nodes (genes) in the largest connected component. Only values are necessary, not gene names. Output the single column and six rows with appropriately labelled column and row names.**
+```{r q3a}
+# Q3a
+graphsummary = function(graph){
+  x1 = min(graph::degree(graph))
+  x2 = median(graph::degree(graph))
+  x3 = mean(graph::degree(graph))
+  x4 = max(graph::degree(graph))
+  x5 = length(connectedComp(graph))
+  x6 = length(unlist(n_largest_cc(graph, 1)))
+  # above gets all the summary statistics
+  mat = matrix(NA, nrow = 6, ncol = 1) # creates matrix
+  colnames(mat) = c("Summary")
+  rownames(mat) = c("Min Degree", "Median Degree", "Mean Degree", "Max Degree", "Num ConnectComp", "Largest ConnectComp (Nodes)" )
+  mat[, 1] = c(x1, x2, x3, x4, x5, x6)
+  return(mat)
+}
+graphsummary(graph2)
+```
+
+**Q.3.b Write a function that takes a Boolean network (like cellcycle or igf) and outputs the basic network information (what you get when you type the network name, e.g. cellcycle, on the command line and hit ‘return’) along with a matrix of one column and two rows with values for the number of genes and the number of attractors. Only values are necessary, not gene names. Output the single column and two rows with appropriately labelled column and row names.**
+```{r q3b}
+# Q3b
+genes_and_attractors = function(network){
+  att = getAttractors(network)
+  num_att = length(att$attractors)
+  num_genes = length(network$genes)
+  # gets the number of attractors and genes
+  mat = matrix(NA, nrow = 2, ncol = 1)
+  colnames(mat) = "Network Stats"
+  rownames(mat) = c("Number of Genes", "Number of Attractors")
+  mat[, 1] = c(num_genes, num_att)
+  return(list(network, mat)) # returns both the matrix and network information
+}
+
+genes_and_attractors(igf)
+```
+
+

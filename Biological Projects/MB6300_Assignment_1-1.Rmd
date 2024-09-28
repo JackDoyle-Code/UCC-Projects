@@ -1,0 +1,166 @@
+---
+title: "MB6300 Assignment 1"
+author: "Jill O'Sullivan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Q.1**
+
+**(a) Create a matrix with 10 rows and 10 columns from the integers 1 to 100. Add column names and row names; the column names should be `a` to `j` (lower case) and the row names should also be `A` to `J`, but in upper case. (0.5%)**
+
+```{r q1a}
+# Q1a
+mat1 = matrix(c(1:100), nrow = 10, ncol = 10, byrow = T) 
+# creates a matrix of 10x10 by row
+colnames(mat1) = letters[1:10] 
+# uses built in letters dataframe and calls the first 10 letters of it for the colnames
+rownames(mat1) = LETTERS[1:10]
+# uses built in letters dataframe and calls the first 10 letters of it for the rownames
+```
+
+**(b) From the matrix created in part (a), create a subset by extracting the first 5 rows and first 3 columns. In this subset replace the element in the 2nd row and 3rd column with 0. (0.5%)**
+
+```{r q1b}
+# Q1b
+sub_mat1 = mat1[1:5, 1:3] 
+# retrieves the first 5 rows and 3 columns of mat1
+sub_mat1[2,3] = 0
+# replaces the 2nd row and 3rd column value with 0
+```
+
+**(c) In the matrix created in part (a), replace all values greater than 70, and less than 80 with 0. (0.5%)**
+```{r q1c}
+# Q1c
+mat1[mat1 > 70 & mat1 < 80] = 0 
+# checks the condition where values in mat1 are >70 AND <80. If both are true, the value is replaced with 0
+```
+
+**(d) *In your own words* and using examples in R, describe the differences between a data frame and a matrix, and a list and a vector. (0.5%)**
+
+```{r q1d}
+# Q1d
+
+# The main difference between a matrix and a data frame is that matrices can only hold a single data type within it, whereas, data frames can hold multiple data types within it. (see example below)
+
+# Matrices also use indices as their inherent row and column identifiers and can only be called by index unless a column/row name is added. Data frames on the other hand have inherent column/row names build into them when creating one and information can be retrieved via index or column/row name (see example below)
+
+eg_mat = matrix(c(1:3, "The", "big", "pig"), nrow = 3, ncol = 2)
+eg_mat # all values are converted to the "chr" data type
+
+eg_df = data.frame(A = c(1, 2, 3), B = c("The", "big", "pig"), row.names = c("r1", "r2", "r3"))
+eg_df # contains both "chr" and "num" data type
+
+eg_mat[2]
+eg_df[2]
+eg_df["B"]
+
+# A list is similar to a matrix as it can only hold one data type within it and lists can hold multipe data types. List are even capable of holding data frames, matrices, etc, in them. Lists are merely a collection a R objects (see example below)
+
+eg_vec = c(1, 3, 5, 7)
+# creates a simple vector containing one data type ("num")
+eg_vec1 = c(1, 3, 5, 7, eg_mat)
+# attempt to add a matrix to the vector results in all values being converted to "chr" data type
+eg_list = list(2, "The", eg_df, eg_mat)
+# creates a list containing various data types and R objects
+```
+
+<br>
+
+**Q.2**
+
+**(a) Download the dataset (MB6300_Assignment_1_data.txt) from Canvas. Read this into R. What are the dimensions of the table? What is the class? (0.5%)**
+```{r Q2a}
+# Q2a
+a1_df = read.table("MB6300_Assignment_1_data.txt")
+# reads in the table
+dim(a1_df) 
+# returns the dimensions (172745, 13)
+class(a1_df)
+# returns the class (data frame)
+```
+
+
+**(b) Using the apply() function and subsequent steps of your choice, find the row with the highest average expression over all samples. Which gene does this row correspond to? What is the expression in each individual sample for this row? (1%)**
+```{r q2b}
+# Q2b
+max_sum = which.max(apply(a1_df, 1, sum)) 
+# calculates the sum of each row and then retrieves the name of the row that contains the max value
+max_gene_name = rownames(a1_df[max_sum,])
+# searches the data frame for the row that matches the index found from the above and gets the row name (i.e. gene name)
+max_row = a1_df[max_gene_name,]
+# returns the entire row with the gene name
+print(max_gene_name)
+print(max_row)
+```
+
+**(c) Write a for-loop to take the place of the apply() function in part (b). Find the row with the highest average expression over all samples. Which method - apply() or for() - is more efficient and why? (1.5%)**
+```{r q2c}
+# Q2c
+max_sum2 = c() # creates an empty vector
+for(i in 1:nrow(a1_df)){ # iterates through each row of the data frame
+  max_sum2[i] = sum(a1_df[i,]) # sets each index of the new vector to the sum of each row
+}
+max_gene_name = which.max(max_sum2) # gets the index of the max value in the vector
+rownames(a1_df[max_gene_name,]) # gets the name of the gene for that row
+
+# The apply function is more efficient than the for loop because apply can apply the sum function to the entire array of rows all at once, whereas the for loop must iterate through each and every row of the matrix increasing the execution time. This may not be an issue for small datasets but becomes more problematic the larger the dataset becomes.
+```
+
+**(d) Using the method you find to be more efficient, write a function that will read in a given file, and output the row with the highest average expression (1%)  (Output can be rowname, rowname and average, or the row itself).**
+```{r q2d}
+# Q2d
+max_exp = function(infile){ # creates a function with the input being a file
+  data = read.table(infile) # reads in the file as a table
+  ind_max = which.max(apply(data, 1, sum)) # finds the index of the row with the max sum value 
+  return(data[ind_max,]) # returns the row
+}
+
+max_exp("MB6300_Assignment_1_data.txt") # calls the function
+```
+
+<br>
+
+**Q.3**
+
+**(a) Extract all row names that have an ensembl gene identifier (i.e. row names that start with “ENS”) from the table given in Q.2. How many ensembl genes are there? (2%)**
+```{r q3a}
+# Q3a
+ens_df = a1_df[grep("ENS", rownames(a1_df)),]
+# grep uses the pattern "ENS" to select the index of rownames that contain "ENS". Their index is then called the rows are returned
+nrow(ens_df)
+# returns the number of rows (13)
+```
+
+**(b) Using biomaRt, download the transcript IDs for these genes (use the ensembl mart and mouse genome). How many transcripts are there for each gene? (1%)**
+```{r q3b}
+# Q3b
+library(biomaRt) 
+# loads biomaRt library
+ens = useEnsembl(biomart = "ensembl")
+# retrieves the ensembl mart
+ens = useDataset(dataset = "mmusculus_gene_ensembl", mart = ens)
+# adds the dataset for m. musculus to the mart
+head(listAttributes(ens))
+# returns the first 6 attributes that can be used
+trans_id = 
+getBM(attributes = c("ensembl_gene_id", "ensembl_transcript_id"),
+      filter = "ensembl_gene_id",
+      values = rownames(ens_df),
+      mart = ens)
+# searches through the database to find any genes matching the id of the provided values (the genes from ens_df) and returns the gene_id and transcription_id for these genes
+table(trans_id$ensembl_gene_id)
+# returns a table representing the number of transcripts each gene has
+```
+
+**(c) What is the amino acid sequence for `ENSMUSG00000000120`? (0.5%)**
+```{r q3c}
+# Q3c
+getSequence(id = "ENSMUSG00000000120" , type = "ensembl_gene_id", seqType = "peptide", mart = ens)
+# retrieves the amino acid sequence for the given ensembl_gene_id
+```
+
